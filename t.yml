@@ -1,0 +1,86 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: risky-redis-deployment-3
+  namespace: default
+spec:
+  selector:
+    matchLabels:
+      app: web
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: web
+    spec:
+      automountServiceAccountToken: true
+      hostIPC: true
+      hostPID: true
+      hostNetwork: true
+      volumes:
+        - name: risky-volume
+          hostPath:
+            path: /var/run/dockersock
+      serviceAccountName: default
+      securityContext:
+        runAsNonRoot: false
+        runAsGroup: 0
+      containers:
+        - name: risky-redis-container
+          securityContext:
+            windowsOptions:
+              hostProcess: true
+            capabilities:
+              add:
+                - SYS_ADMIN
+                - NET_ADMIN
+                - NET_RAW
+            runAsNonRoot: false
+            runAsGroup: 0
+            allowPrivilegeEscalation: true
+            readOnlyRootFilesystem: false
+            privileged: true
+          image: redis:latest
+          imagePullPolicy: IfNotPresent
+          volumeMounts:
+            - name: risky-volume
+              mountPath: /mnt/risky
+              readOnly: false
+          ports:
+            - containerPort: 6379
+              name: redis
+              protocol: TCP
+              hostPort: 6379
+          env:
+            - name: MY_DB_PW
+              valueFrom:
+                secretKeyRef:
+                  name: risky-secret
+                  key: PASSWORD
+          envFrom:
+            - secretRef:
+                name: risky-secret
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    component: alpine
+  name: alpine-deployment-3
+  namespace: e2e
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      component: alpine
+  template:
+    metadata:
+      labels:
+        component: alpine
+    spec:
+      serviceAccountName: default
+      containers:
+        - name : alpine-container
+          image: alpine:latest        
+
